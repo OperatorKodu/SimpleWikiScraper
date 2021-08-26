@@ -1,4 +1,3 @@
-import json
 import requests
 from requests.api import head
 
@@ -8,14 +7,14 @@ class Scraper:
         self.PARAMS = ''
         self.HEADERS = ''
 
-    def setURL(self, url):
-        self.URL = url
-
-    def setParameters(self, parameters):
-        self.PARAMS = parameters
-
-    def setHeaders(self, headers):
-        self.HEADERS = headers
+    def get(self):
+        if hasattr(self, 'URL'):
+            try:
+                return self.getResponse()
+            except:
+                print("Parameters or/and headers necessary but not provided")
+        else:
+            print("URL not provided")
 
     def getResponse(self):
         self.session = requests.Session()
@@ -26,14 +25,14 @@ class Scraper:
         else:
             return self.response.json()
 
-    def get(self):
-        if hasattr(self, 'URL'):
-            try:
-                return self.getResponse()
-            except:
-                print("Parameters or/and headers necessary but not provided")
-        else:
-            print("URL not provided")
+    def setURL(self, url):
+        self.URL = url
+
+    def setParameters(self, parameters):
+        self.PARAMS = parameters
+
+    def setHeaders(self, headers):
+        self.HEADERS = headers
 
 
 class WikiScraper:
@@ -45,13 +44,28 @@ class WikiScraper:
         self.action_for_searching = "opensearch"
         self.action_for_getting_page_content = "query"
         self.prop = "extracts"
-        self.exsentences = "10"
-        self.exlimit = "1"
         self.explaintext = "1"
         self.search_phrase = ""
         self.namespace = "0"
         self.limit = "5"
         self.json_format = "json"
+
+    def start(self):
+        while not self.finish:
+            self.setSearchPhrase()
+            self.search()
+
+            self.finish = True #usuń to potem
+
+    def setSearchPhrase(self):
+        self.search_phrase = input("Enter phrase: ")
+
+    def search(self):
+        self.generateSearchingParameters()
+        self.setParams(self.searching_params)
+        self.getData()
+        self.getResults()
+        self.getPageContent()
 
     def generateSearchingParameters(self):
         self.searching_params = {
@@ -65,29 +79,38 @@ class WikiScraper:
     def setParams(self, params):
         self.params = params
 
-    def setSearchPhrase(self):
-        self.search_phrase = input("Enter phrase: ")
-
     def getData(self):
         self.scraper.setURL(self.url)
         self.scraper.setParameters(self.params)
         self.received_data = self.scraper.get()
 
-    def search(self):
-        self.generateSearchingParameters()
-        self.setParams(self.searching_params)
+    def getResults(self):
+        self.extractResultsAndLinks()
+
+        if self.isMoreThanOneResult():
+            self.displayPossibleResults()
+        else:
+            self.setChosenResult(1)
+
+    def getPageContent(self):
+        self.extractPageTitle()
+        self.generatePageContentParameters()
+        self.setParams(self.get_page_content_params)
         self.getData()
-
-    def setChosenResult(self, choose):
-        self.chosen_link = self.links[int(choose) - 1]
-
-    def chooseProperResult(self):
-        choose = input("Select the id of the desired result: ")
-        self.setChosenResult(choose)
+        pages = self.received_data['query']['pages']
+        for data in pages.values():
+            try:
+                print('\n==', data['title'], '==')
+                print(data['extract'])
+            except:
+                if hasattr(data, "invalidreason"):
+                    print(data['invalidreason'])
+                else:
+                    print('Unrecognized error')
+                    print(self.received_data)
 
     def extractResultsAndLinks(self):
         self.results = self.received_data[1]
-        self.links = self.received_data[3]
 
     def isMoreThanOneResult(self):
         if len(self.results) > 1:
@@ -103,48 +126,26 @@ class WikiScraper:
             id += 1
         self.chooseProperResult()
 
-    def getResults(self):
-        
-        self.extractResultsAndLinks()
-
-        if self.isMoreThanOneResult():
-            self.displayPossibleResults()
-        else:
-            self.setChosenResult(1)
+    def setChosenResult(self, choose):
+        self.chosen_result = self.results[int(choose) - 1]
 
     def extractPageTitle(self):
-        trash, self.page_title = self.chosen_link.rsplit('/', 1)
+        string_list = self.chosen_result.split()
+        separator = "_"
+        self.page_title = separator.join(string_list)
 
     def generatePageContentParameters(self):
         self.get_page_content_params = {
             "action": self.action_for_getting_page_content,
             "prop": self.prop,
-            "exsentences": self.exsentences,
-            "exlimit": self.exlimit,
             "titles": self.page_title,
             "explaintext": self.explaintext,
             "format": self.json_format
         }
 
-    def getPageContent(self):
-        self.extractPageTitle()
-        self.generatePageContentParameters()
-        self.setParams(self.get_page_content_params)
-        self.getData()
-        pages = self.received_data['query']['pages']
-        for page, data in pages.items():
-            print('\n==', data['title'], '==')
-            print(data['extract'])
-
-        
-
-    def start(self):
-        while not self.finish:
-            self.setSearchPhrase()
-            self.search()
-            self.getResults()
-            self.getPageContent()
-            self.finish = True
+    def chooseProperResult(self):
+        choose = input("Select the id of the desired result: ")
+        self.setChosenResult(choose)
 
 
 wikiScraper = WikiScraper()
